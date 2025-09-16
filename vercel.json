@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "name": "video-battle-certification-generator",
+  "public": true,
+  "builds": [
+    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "styles/**", "use": "@vercel/static" },
+    { "src": "scripts/**", "use": "@vercel/static" },
+    { "src": "底图/**", "use": "@vercel/static" },
+    { "src": "*.ttc", "use": "@vercel/static" },
+    { "src": "*.otf", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/$1" }
+  ]
+}
+

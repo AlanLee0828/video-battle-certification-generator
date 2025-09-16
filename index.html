@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>证书生成器</title>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="main-title">VIDEO BATTLE</h1>
+        </header>
+
+        <main class="main-content">
+            <!-- 左侧控制面板 -->
+            <div class="control-panel">
+                <!-- 类别选择区域 -->
+                <section class="category-section">
+                    <h2>选择类别</h2>
+                    <div class="category-buttons">
+                        <label class="category-option">
+                            <input type="radio" name="category" value="单镜头" checked>
+                            <span class="button-text">单镜头</span>
+                        </label>
+                        <label class="category-option">
+                            <input type="radio" name="category" value="蒙太奇">
+                            <span class="button-text">蒙太奇</span>
+                        </label>
+                        <label class="category-option">
+                            <input type="radio" name="category" value="长镜头">
+                            <span class="button-text">长镜头</span>
+                        </label>
+                    </div>
+                </section>
+
+                <!-- 基础信息区域 -->
+                <section class="basic-info-section">
+                    <h2>基础信息</h2>
+                    <div class="basic-info-control">
+                        <div class="text-field">
+                            <label for="issue-input">期数</label>
+                            <input type="text" id="issue-input" placeholder="例如: Vol.48" class="text-input">
+                        </div>
+                        <div class="text-field">
+                            <label for="theme-input">主题</label>
+                            <input type="text" id="theme-input" placeholder="例如: 梦核故事" class="text-input">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 批量奖项输入区域 -->
+                <section class="batch-awards-section">
+                    <h2>获奖者名单</h2>
+                    <div class="awards-input-grid">
+                        <div class="award-input-group">
+                            <label for="gold-winners">金奖获奖者</label>
+                            <textarea id="gold-winners" placeholder="每行一个获奖者姓名" class="award-textarea" rows="2"></textarea>
+                        </div>
+                        <div class="award-input-group">
+                            <label for="silver-winners">银奖获奖者</label>
+                            <textarea id="silver-winners" placeholder="每行一个获奖者姓名" class="award-textarea" rows="2"></textarea>
+                        </div>
+                        <div class="award-input-group">
+                            <label for="bronze-winners">铜奖获奖者</label>
+                            <textarea id="bronze-winners" placeholder="每行一个获奖者姓名" class="award-textarea" rows="2"></textarea>
+                        </div>
+                        <div class="award-input-group">
+                            <label for="finalist-winners">入围奖获奖者</label>
+                            <textarea id="finalist-winners" placeholder="每行一个获奖者姓名" class="award-textarea" rows="4"></textarea>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 色相调整区域 -->
+                <section class="hue-section">
+                    <h2>色相调整</h2>
+                    <div class="hue-control">
+                        <label for="hue-slider" class="hue-label">
+                            色相值: <span id="hue-value">0</span>°
+                        </label>
+                        <input type="range" id="hue-slider" min="-180" max="180" value="0" step="1" class="hue-slider">
+                        <button id="reset-hue" class="reset-button">重置</button>
+                    </div>
+                </section>
+
+                <!-- 操作按钮区域 -->
+                <section class="actions-section">
+                    <button id="generate-preview" class="action-button primary">生成预览</button>
+                    <button id="download-all" class="action-button primary">批量下载</button>
+                    <button id="reset-all" class="action-button secondary">重置所有</button>
+                </section>
+            </div>
+
+            <!-- 右侧预览区域 -->
+            <div class="preview-panel">
+                <section class="preview-section">
+                    <div class="preview-header">
+                        <h2>证书预览</h2>
+                        <div class="preview-info">
+                            <span id="preview-counter">0 / 0</span>
+                        </div>
+                    </div>
+                    
+                    <div class="preview-container">
+                        <div class="certificate-viewport">
+                            <button class="nav-button prev-btn" id="prev-btn">‹</button>
+                            <div class="certificate-display">
+                                <canvas id="preview-canvas" class="preview-canvas"></canvas>
+                                <div class="loading-indicator hidden" id="loading-indicator">
+                                    <div class="spinner"></div>
+                                    <p>生成预览中...</p>
+                                </div>
+                                <div class="empty-state" id="empty-state">
+                                    <p>请填写获奖者名单并点击"生成预览"</p>
+                                </div>
+                            </div>
+                            <button class="nav-button next-btn" id="next-btn">›</button>
+                        </div>
+                        
+                        <div class="certificate-info">
+                            <div class="current-certificate-info" id="current-info">
+                                <span class="award-type"></span>
+                                <span class="winner-name"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 预览控制 -->
+                    <div class="preview-controls">
+                        <div class="preview-dots" id="preview-dots"></div>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; AlanLee</p>
+        </footer>
+    </div>
+
+    <script src="scripts/certificate-generator.js"></script>
+</body>
+</html>
