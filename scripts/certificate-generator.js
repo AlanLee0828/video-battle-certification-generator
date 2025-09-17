@@ -567,18 +567,22 @@ class CertificateGenerator {
         }
 
         try {
-            this.showLoading();
+            this.showLoading('批量下载中...');
             
             // 动态加载JSZip
             const JSZip = await this.loadJSZip();
             const zip = new JSZip();
             
-            // 为每张证书生成高质量图像
+            // 获取主题名称，如果没有则使用默认值
+            const theme = this.currentState.theme || 'VIDEO_BATTLE';
+            const safeTheme = theme.replace(/[^\w\u4e00-\u9fa5]/g, '_'); // 清理文件名
+            
+            // 为每张证书生成PDF
             for (let i = 0; i < this.currentState.certificates.length; i++) {
                 const certificate = this.currentState.certificates[i];
-                const blob = await this.generateCertificateBlob(certificate);
-                const fileName = `${certificate.category}-${certificate.award}-${certificate.name}.png`;
-                zip.file(fileName, blob);
+                const pdfBlob = await this.generateCertificatePDF(certificate);
+                const fileName = `${safeTheme}-${certificate.name}.pdf`;
+                zip.file(fileName, pdfBlob);
             }
             
             // 生成并下载ZIP
@@ -586,7 +590,7 @@ class CertificateGenerator {
             const url = URL.createObjectURL(zipBlob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `VIDEO_BATTLE证书-${this.currentState.category}-${Date.now()}.zip`;
+            link.download = `${safeTheme}-证书批量.zip`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -599,6 +603,77 @@ class CertificateGenerator {
             this.showError(`下载失败: ${error.message}`);
             this.hideLoading();
         }
+    }
+
+    // 生成证书PDF
+    async generateCertificatePDF(certificate) {
+        // 动态加载jsPDF
+        const { jsPDF } = await this.loadJSPDF();
+        
+        // 创建PDF文档 (A4尺寸: 210x297mm)
+        const pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+        });
+        
+        // 获取图像
+        const baseImagePath = this.getBaseImagePath();
+        const awardImagePath = this.getAwardImagePath(certificate.award);
+        
+        const [baseImg, awardImg] = await Promise.all([
+            this.loadImage(baseImagePath),
+            this.loadImage(awardImagePath)
+        ]);
+
+        // 计算图像在PDF中的尺寸和位置
+        const pdfWidth = 210; // A4宽度
+        const pdfHeight = 297; // A4高度
+        const imageWidth = Math.max(baseImg.naturalWidth, awardImg.naturalWidth);
+        const imageHeight = Math.max(baseImg.naturalHeight, awardImg.naturalHeight);
+        
+        // 计算缩放比例以适应A4
+        const scaleX = pdfWidth / imageWidth;
+        const scaleY = pdfHeight / imageHeight;
+        const scale = Math.min(scaleX, scaleY);
+        
+        const scaledWidth = imageWidth * scale;
+        const scaledHeight = imageHeight * scale;
+        const x = (pdfWidth - scaledWidth) / 2;
+        const y = (pdfHeight - scaledHeight) / 2;
+        
+        // 创建临时canvas用于图像处理
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = imageWidth;
+        canvas.height = imageHeight;
+        
+        // 清空画布
+        ctx.clearRect(0, 0, imageWidth, imageHeight);
+        
+        // 绘制底图并应用色相滤镜
+        if (this.currentState.hueValue !== 0) {
+            ctx.filter = `hue-rotate(${this.currentState.hueValue}deg)`;
+        }
+        
+        const baseX = (imageWidth - baseImg.naturalWidth) / 2;
+        const baseY = (imageHeight - baseImg.naturalHeight) / 2;
+        ctx.drawImage(baseImg, baseX, baseY);
+        
+        // 重置滤镜并绘制奖项图片
+        ctx.filter = 'none';
+        const awardX = (imageWidth - awardImg.naturalWidth) / 2;
+        const awardY = (imageHeight - awardImg.naturalHeight) / 2;
+        ctx.drawImage(awardImg, awardX, awardY);
+        
+        // 绘制文字
+        this.drawTextOnCanvas(ctx, imageWidth, imageHeight, certificate);
+        
+        // 将canvas转换为图像并添加到PDF
+        const imageData = canvas.toDataURL('image/png', 1.0);
+        pdf.addImage(imageData, 'PNG', x, y, scaledWidth, scaledHeight);
+        
+        return pdf.output('blob');
     }
 
     // 生成证书Blob
@@ -717,6 +792,21 @@ class CertificateGenerator {
             script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
             script.onload = () => resolve(window.JSZip);
             script.onerror = () => reject(new Error('无法加载JSZip库'));
+            document.head.appendChild(script);
+        });
+    }
+
+    // 动态加载jsPDF
+    async loadJSPDF() {
+        if (window.jsPDF) {
+            return window.jsPDF;
+        }
+        
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+            script.onload = () => resolve(window.jsPDF);
+            script.onerror = () => reject(new Error('无法加载jsPDF库'));
             document.head.appendChild(script);
         });
     }
