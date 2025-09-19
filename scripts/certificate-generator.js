@@ -608,7 +608,14 @@ class CertificateGenerator {
     // 生成证书PDF
     async generateCertificatePDF(certificate) {
         // 动态加载jsPDF
-        const { jsPDF } = await this.loadJSPDF();
+        const jsPDFModule = await this.loadJSPDF();
+        
+        // 兼容不同的jsPDF加载方式
+        const jsPDF = jsPDFModule.jsPDF || jsPDFModule.default?.jsPDF || jsPDFModule;
+        
+        if (!jsPDF) {
+            throw new Error('jsPDF库未正确加载');
+        }
         
         // 创建PDF文档 (A4尺寸: 210x297mm)
         const pdf = new jsPDF({
@@ -798,14 +805,23 @@ class CertificateGenerator {
 
     // 动态加载jsPDF
     async loadJSPDF() {
-        if (window.jsPDF) {
+        if (window.jsPDF && window.jsPDF.jsPDF) {
             return window.jsPDF;
         }
         
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-            script.onload = () => resolve(window.jsPDF);
+            script.onload = () => {
+                // 等待一小段时间确保库完全加载
+                setTimeout(() => {
+                    if (window.jsPDF) {
+                        resolve(window.jsPDF);
+                    } else {
+                        reject(new Error('jsPDF库加载后仍未找到'));
+                    }
+                }, 100);
+            };
             script.onerror = () => reject(new Error('无法加载jsPDF库'));
             document.head.appendChild(script);
         });
