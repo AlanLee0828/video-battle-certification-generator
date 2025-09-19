@@ -559,7 +559,7 @@ class CertificateGenerator {
         }
     }
 
-    // 批量下载所有证书 - 支持PDF和PNG备选
+    // 批量下载所有证书 - PNG格式
     async downloadAllCertificates() {
         if (this.currentState.certificates.length === 0) {
             this.showError('请先生成预览');
@@ -577,43 +577,16 @@ class CertificateGenerator {
             const theme = this.currentState.theme || 'VIDEO_BATTLE';
             const safeTheme = theme.replace(/[^\w\u4e00-\u9fa5]/g, '_'); // 清理文件名
             
-            let usePDF = true;
-            let pdfError = null;
-            
-            // 先尝试生成第一个PDF来测试jsPDF是否可用
-            try {
-                const firstCertificate = this.currentState.certificates[0];
-                await this.generateCertificatePDF(firstCertificate);
-                console.log('PDF生成测试成功，将使用PDF格式');
-            } catch (error) {
-                console.warn('PDF生成失败，切换到PNG格式:', error.message);
-                usePDF = false;
-                pdfError = error.message;
-            }
-            
-            // 为每张证书生成文件
+            // 为每张证书生成PNG文件
             for (let i = 0; i < this.currentState.certificates.length; i++) {
                 const certificate = this.currentState.certificates[i];
+                const pngBlob = await this.generateCertificateBlob(certificate);
+                const fileName = `${safeTheme}-${certificate.name}.png`;
+                zip.file(fileName, pngBlob);
                 
-                try {
-                    if (usePDF) {
-                        const pdfBlob = await this.generateCertificatePDF(certificate);
-                        const fileName = `${safeTheme}-${certificate.name}.pdf`;
-                        zip.file(fileName, pdfBlob);
-                    } else {
-                        const pngBlob = await this.generateCertificateBlob(certificate);
-                        const fileName = `${safeTheme}-${certificate.name}.png`;
-                        zip.file(fileName, pngBlob);
-                    }
-                    
-                    // 更新进度
-                    const progress = Math.round(((i + 1) / this.currentState.certificates.length) * 100);
-                    this.showLoading(`生成中... ${progress}%`);
-                    
-                } catch (error) {
-                    console.error(`生成证书失败 (${certificate.name}):`, error);
-                    // 继续处理下一个证书，而不是中断整个过程
-                }
+                // 更新进度
+                const progress = Math.round(((i + 1) / this.currentState.certificates.length) * 100);
+                this.showLoading(`生成中... ${progress}%`);
             }
             
             // 生成并下载ZIP
@@ -628,13 +601,7 @@ class CertificateGenerator {
             URL.revokeObjectURL(url);
             
             this.hideLoading();
-            
-            const format = usePDF ? 'PDF' : 'PNG';
-            let message = `成功下载 ${this.currentState.certificates.length} 张${format}证书！`;
-            if (!usePDF && pdfError) {
-                message += `\n注意：由于PDF生成失败（${pdfError}），已自动切换为PNG格式。`;
-            }
-            this.showSuccess(message);
+            this.showSuccess(`成功下载 ${this.currentState.certificates.length} 张PNG证书！`);
             
         } catch (error) {
             this.showError(`下载失败: ${error.message}`);
@@ -642,100 +609,22 @@ class CertificateGenerator {
         }
     }
 
-    // 生成证书PDF
-    async generateCertificatePDF(certificate) {
-        try {
-            // 动态加载jsPDF
-            const jsPDFLib = await this.loadJSPDF();
-            console.log('jsPDF库对象:', jsPDFLib);
-            
-            // 获取jsPDF构造函数
-            let jsPDF;
-            if (typeof jsPDFLib === 'function') {
-                jsPDF = jsPDFLib;
-            } else if (jsPDFLib && jsPDFLib.jsPDF) {
-                jsPDF = jsPDFLib.jsPDF;
-            } else if (jsPDFLib && jsPDFLib.default && jsPDFLib.default.jsPDF) {
-                jsPDF = jsPDFLib.default.jsPDF;
-            } else {
-                console.error('无法找到jsPDF构造函数，库对象:', jsPDFLib);
-                throw new Error('jsPDF构造函数未找到');
-            }
-            
-            console.log('使用的jsPDF构造函数:', jsPDF);
-            
-            // 创建PDF文档 (A4尺寸: 210x297mm)
-            const pdf = new jsPDF({
-                orientation: 'portrait',
-                unit: 'mm',
-                format: 'a4'
-            });
-            
-            // 获取图像
-            const baseImagePath = this.getBaseImagePath();
-            const awardImagePath = this.getAwardImagePath(certificate.award);
-            
-            const [baseImg, awardImg] = await Promise.all([
-                this.loadImage(baseImagePath),
-                this.loadImage(awardImagePath)
-            ]);
-
-            // 计算图像在PDF中的尺寸和位置
-            const pdfWidth = 210; // A4宽度
-            const pdfHeight = 297; // A4高度
-            const imageWidth = Math.max(baseImg.naturalWidth, awardImg.naturalWidth);
-            const imageHeight = Math.max(baseImg.naturalHeight, awardImg.naturalHeight);
-            
-            // 计算缩放比例以适应A4
-            const scaleX = pdfWidth / imageWidth;
-            const scaleY = pdfHeight / imageHeight;
-            const scale = Math.min(scaleX, scaleY);
-            
-            const scaledWidth = imageWidth * scale;
-            const scaledHeight = imageHeight * scale;
-            const x = (pdfWidth - scaledWidth) / 2;
-            const y = (pdfHeight - scaledHeight) / 2;
-            
-            // 创建临时canvas用于图像处理
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = imageWidth;
-            canvas.height = imageHeight;
-            
-            // 清空画布
-            ctx.clearRect(0, 0, imageWidth, imageHeight);
-            
-            // 绘制底图并应用色相滤镜
-            if (this.currentState.hueValue !== 0) {
-                ctx.filter = `hue-rotate(${this.currentState.hueValue}deg)`;
-            }
-            
-            const baseX = (imageWidth - baseImg.naturalWidth) / 2;
-            const baseY = (imageHeight - baseImg.naturalHeight) / 2;
-            ctx.drawImage(baseImg, baseX, baseY);
-            
-            // 重置滤镜并绘制奖项图片
-            ctx.filter = 'none';
-            const awardX = (imageWidth - awardImg.naturalWidth) / 2;
-            const awardY = (imageHeight - awardImg.naturalHeight) / 2;
-            ctx.drawImage(awardImg, awardX, awardY);
-            
-            // 绘制文字
-            this.drawTextOnCanvas(ctx, imageWidth, imageHeight, certificate);
-            
-            // 将canvas转换为图像并添加到PDF
-            const imageData = canvas.toDataURL('image/png', 1.0);
-            pdf.addImage(imageData, 'PNG', x, y, scaledWidth, scaledHeight);
-            
-            return pdf.output('blob');
-            
-        } catch (error) {
-            console.error('PDF生成失败:', error);
-            throw new Error(`PDF生成失败: ${error.message}`);
+    // 动态加载JSZip
+    async loadJSZip() {
+        if (window.JSZip) {
+            return window.JSZip;
         }
+        
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+            script.onload = () => resolve(window.JSZip);
+            script.onerror = () => reject(new Error('无法加载JSZip库'));
+            document.head.appendChild(script);
+        });
     }
 
-    // 生成证书Blob
+    // 生成证书PNG Blob
     async generateCertificateBlob(certificate) {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -837,88 +726,6 @@ class CertificateGenerator {
                     console.log(`预加载奖项图片完成: ${imagePath}`);
                 }).catch(err => console.error(`预加载奖项图片失败: ${imagePath}`, err));
             });
-        });
-    }
-
-    // 动态加载JSZip
-    async loadJSZip() {
-        if (window.JSZip) {
-            return window.JSZip;
-        }
-        
-        return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-            script.onload = () => resolve(window.JSZip);
-            script.onerror = () => reject(new Error('无法加载JSZip库'));
-            document.head.appendChild(script);
-        });
-    }
-
-    // 动态加载jsPDF - 支持多个CDN和备选方案
-    async loadJSPDF() {
-        // 如果已经加载，直接返回
-        if (window.jsPDF) {
-            return window.jsPDF;
-        }
-        
-        // 多个CDN源
-        const cdnUrls = [
-            'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js',
-            'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-            'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js'
-        ];
-        
-        for (const url of cdnUrls) {
-            try {
-                console.log(`尝试从 ${url} 加载jsPDF...`);
-                await this.loadScriptFromUrl(url);
-                
-                // 检查是否成功加载
-                if (window.jsPDF) {
-                    console.log(`jsPDF从 ${url} 加载成功`);
-                    return window.jsPDF;
-                }
-            } catch (error) {
-                console.warn(`从 ${url} 加载jsPDF失败:`, error.message);
-                continue;
-            }
-        }
-        
-        throw new Error('所有CDN源都无法加载jsPDF库');
-    }
-    
-    // 从指定URL加载脚本
-    loadScriptFromUrl(url) {
-        return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = url;
-            
-            const timeout = setTimeout(() => {
-                reject(new Error('脚本加载超时'));
-            }, 10000); // 10秒超时
-            
-            script.onload = () => {
-                clearTimeout(timeout);
-                // 使用多次检查确保库完全加载
-                const checkLoad = (attempts = 0) => {
-                    if (window.jsPDF) {
-                        resolve();
-                    } else if (attempts < 20) {
-                        setTimeout(() => checkLoad(attempts + 1), 100);
-                    } else {
-                        reject(new Error('库加载后仍未找到'));
-                    }
-                };
-                checkLoad();
-            };
-            
-            script.onerror = () => {
-                clearTimeout(timeout);
-                reject(new Error('脚本加载失败'));
-            };
-            
-            document.head.appendChild(script);
         });
     }
 
