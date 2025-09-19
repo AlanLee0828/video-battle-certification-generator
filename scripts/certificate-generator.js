@@ -342,18 +342,18 @@ class CertificateGenerator {
             if (hasEnglish && !hasChinese) {
                 // 纯英文使用Didot粗体
                 ctx.font = 'bold 45px Didot, serif';
-                ctx.fillText(text, canvasWidth / 2, 1130);
+                ctx.fillText(text, canvasWidth / 2, 1080);
             } else if (hasChinese && !hasEnglish) {
                 // 纯中文使用思源宋体
                 ctx.font = '45px SourceHanSerifCN-Medium, serif';
-                ctx.fillText(text, canvasWidth / 2, 1130);
+                ctx.fillText(text, canvasWidth / 2, 1080);
             } else if (hasEnglish && hasChinese) {
                 // 中英混排：分别处理
-                this.drawMixedText(ctx, text, canvasWidth / 2, 1130);
+                this.drawMixedText(ctx, text, canvasWidth / 2, 1080);
             } else {
                 // 其他情况使用中文字体
                 ctx.font = '45px SourceHanSerifCN-Medium, serif';
-                ctx.fillText(text, canvasWidth / 2, 1130);
+                ctx.fillText(text, canvasWidth / 2, 1080);
             }
         }
         
