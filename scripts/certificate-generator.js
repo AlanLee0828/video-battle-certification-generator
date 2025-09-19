@@ -607,80 +607,95 @@ class CertificateGenerator {
 
     // 生成证书PDF
     async generateCertificatePDF(certificate) {
-        // 动态加载jsPDF
-        const jsPDFModule = await this.loadJSPDF();
-        
-        // 兼容不同的jsPDF加载方式
-        const jsPDF = jsPDFModule.jsPDF || jsPDFModule.default?.jsPDF || jsPDFModule;
-        
-        if (!jsPDF) {
-            throw new Error('jsPDF库未正确加载');
-        }
-        
-        // 创建PDF文档 (A4尺寸: 210x297mm)
-        const pdf = new jsPDF({
-            orientation: 'portrait',
-            unit: 'mm',
-            format: 'a4'
-        });
-        
-        // 获取图像
-        const baseImagePath = this.getBaseImagePath();
-        const awardImagePath = this.getAwardImagePath(certificate.award);
-        
-        const [baseImg, awardImg] = await Promise.all([
-            this.loadImage(baseImagePath),
-            this.loadImage(awardImagePath)
-        ]);
+        try {
+            // 动态加载jsPDF
+            const jsPDFLib = await this.loadJSPDF();
+            console.log('jsPDF库对象:', jsPDFLib);
+            
+            // 获取jsPDF构造函数
+            let jsPDF;
+            if (typeof jsPDFLib === 'function') {
+                jsPDF = jsPDFLib;
+            } else if (jsPDFLib && jsPDFLib.jsPDF) {
+                jsPDF = jsPDFLib.jsPDF;
+            } else if (jsPDFLib && jsPDFLib.default && jsPDFLib.default.jsPDF) {
+                jsPDF = jsPDFLib.default.jsPDF;
+            } else {
+                console.error('无法找到jsPDF构造函数，库对象:', jsPDFLib);
+                throw new Error('jsPDF构造函数未找到');
+            }
+            
+            console.log('使用的jsPDF构造函数:', jsPDF);
+            
+            // 创建PDF文档 (A4尺寸: 210x297mm)
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+            
+            // 获取图像
+            const baseImagePath = this.getBaseImagePath();
+            const awardImagePath = this.getAwardImagePath(certificate.award);
+            
+            const [baseImg, awardImg] = await Promise.all([
+                this.loadImage(baseImagePath),
+                this.loadImage(awardImagePath)
+            ]);
 
-        // 计算图像在PDF中的尺寸和位置
-        const pdfWidth = 210; // A4宽度
-        const pdfHeight = 297; // A4高度
-        const imageWidth = Math.max(baseImg.naturalWidth, awardImg.naturalWidth);
-        const imageHeight = Math.max(baseImg.naturalHeight, awardImg.naturalHeight);
-        
-        // 计算缩放比例以适应A4
-        const scaleX = pdfWidth / imageWidth;
-        const scaleY = pdfHeight / imageHeight;
-        const scale = Math.min(scaleX, scaleY);
-        
-        const scaledWidth = imageWidth * scale;
-        const scaledHeight = imageHeight * scale;
-        const x = (pdfWidth - scaledWidth) / 2;
-        const y = (pdfHeight - scaledHeight) / 2;
-        
-        // 创建临时canvas用于图像处理
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = imageWidth;
-        canvas.height = imageHeight;
-        
-        // 清空画布
-        ctx.clearRect(0, 0, imageWidth, imageHeight);
-        
-        // 绘制底图并应用色相滤镜
-        if (this.currentState.hueValue !== 0) {
-            ctx.filter = `hue-rotate(${this.currentState.hueValue}deg)`;
+            // 计算图像在PDF中的尺寸和位置
+            const pdfWidth = 210; // A4宽度
+            const pdfHeight = 297; // A4高度
+            const imageWidth = Math.max(baseImg.naturalWidth, awardImg.naturalWidth);
+            const imageHeight = Math.max(baseImg.naturalHeight, awardImg.naturalHeight);
+            
+            // 计算缩放比例以适应A4
+            const scaleX = pdfWidth / imageWidth;
+            const scaleY = pdfHeight / imageHeight;
+            const scale = Math.min(scaleX, scaleY);
+            
+            const scaledWidth = imageWidth * scale;
+            const scaledHeight = imageHeight * scale;
+            const x = (pdfWidth - scaledWidth) / 2;
+            const y = (pdfHeight - scaledHeight) / 2;
+            
+            // 创建临时canvas用于图像处理
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = imageWidth;
+            canvas.height = imageHeight;
+            
+            // 清空画布
+            ctx.clearRect(0, 0, imageWidth, imageHeight);
+            
+            // 绘制底图并应用色相滤镜
+            if (this.currentState.hueValue !== 0) {
+                ctx.filter = `hue-rotate(${this.currentState.hueValue}deg)`;
+            }
+            
+            const baseX = (imageWidth - baseImg.naturalWidth) / 2;
+            const baseY = (imageHeight - baseImg.naturalHeight) / 2;
+            ctx.drawImage(baseImg, baseX, baseY);
+            
+            // 重置滤镜并绘制奖项图片
+            ctx.filter = 'none';
+            const awardX = (imageWidth - awardImg.naturalWidth) / 2;
+            const awardY = (imageHeight - awardImg.naturalHeight) / 2;
+            ctx.drawImage(awardImg, awardX, awardY);
+            
+            // 绘制文字
+            this.drawTextOnCanvas(ctx, imageWidth, imageHeight, certificate);
+            
+            // 将canvas转换为图像并添加到PDF
+            const imageData = canvas.toDataURL('image/png', 1.0);
+            pdf.addImage(imageData, 'PNG', x, y, scaledWidth, scaledHeight);
+            
+            return pdf.output('blob');
+            
+        } catch (error) {
+            console.error('PDF生成失败:', error);
+            throw new Error(`PDF生成失败: ${error.message}`);
         }
-        
-        const baseX = (imageWidth - baseImg.naturalWidth) / 2;
-        const baseY = (imageHeight - baseImg.naturalHeight) / 2;
-        ctx.drawImage(baseImg, baseX, baseY);
-        
-        // 重置滤镜并绘制奖项图片
-        ctx.filter = 'none';
-        const awardX = (imageWidth - awardImg.naturalWidth) / 2;
-        const awardY = (imageHeight - awardImg.naturalHeight) / 2;
-        ctx.drawImage(awardImg, awardX, awardY);
-        
-        // 绘制文字
-        this.drawTextOnCanvas(ctx, imageWidth, imageHeight, certificate);
-        
-        // 将canvas转换为图像并添加到PDF
-        const imageData = canvas.toDataURL('image/png', 1.0);
-        pdf.addImage(imageData, 'PNG', x, y, scaledWidth, scaledHeight);
-        
-        return pdf.output('blob');
     }
 
     // 生成证书Blob
@@ -805,24 +820,35 @@ class CertificateGenerator {
 
     // 动态加载jsPDF
     async loadJSPDF() {
-        if (window.jsPDF && window.jsPDF.jsPDF) {
+        // 如果已经加载，直接返回
+        if (window.jsPDF) {
             return window.jsPDF;
         }
         
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+            
             script.onload = () => {
-                // 等待一小段时间确保库完全加载
-                setTimeout(() => {
+                // 使用多次检查确保库完全加载
+                const checkLoad = (attempts = 0) => {
                     if (window.jsPDF) {
+                        console.log('jsPDF加载成功');
                         resolve(window.jsPDF);
+                    } else if (attempts < 10) {
+                        setTimeout(() => checkLoad(attempts + 1), 50);
                     } else {
-                        reject(new Error('jsPDF库加载后仍未找到'));
+                        reject(new Error('jsPDF库加载超时'));
                     }
-                }, 100);
+                };
+                checkLoad();
             };
-            script.onerror = () => reject(new Error('无法加载jsPDF库'));
+            
+            script.onerror = () => {
+                console.error('jsPDF脚本加载失败');
+                reject(new Error('无法加载jsPDF库'));
+            };
+            
             document.head.appendChild(script);
         });
     }
